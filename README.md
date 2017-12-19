@@ -2,6 +2,52 @@
 Self-Driving Car Engineer Nanodegree Program
 
 ---
+## Overview
+
+The aim of this project was to build a MPC controller to drive a car on a simulator.
+
+## The Model
+I used Kinematic Bicycle Model in this project. It consists of following states:
+  * x: The x position of the vehicle.
+  * y: The y position of the vehicle.
+  * psi: The orientation of the vehicle.
+  * v: The current velocity.
+  * cte: The Cross-Track-Error.
+  * epsi: The orientation error.
+
+And the update equation is:
+  * fg[1 + x_start + t] = x1 - (x0 + v0 * CppAD::cos(psi0) * dt);
+  * fg[1 + y_start + t] = y1 - (y0 + v0 * CppAD::sin(psi0) * dt);
+  * fg[1 + psi_start + t] = psi1 - (psi0 + v0 * delta0 / Lf * dt);
+  * fg[1 + v_start + t] = v1 - (v0 + a0 * dt);
+  * fg[1 + cte_start + t] = cte1 - ((f0 - y0) + (v0 * CppAD::sin(epsi0) * dt));
+  * fg[1 + epsi_start + t] = epsi1 - ((psi0 - psides0) + v0 * delta0 / Lf * dt);
+
+## Timestep Length and Elapsed Duration (N & dt)
+The time T=N*dt defines the prediction horizon. Short prediction horizons lead to more responsive controllers, but are less accurate and can suffer from instabilities when chosen too short. Long prediction horizons generally lead to smoother controls. For a given prediction horizon shorter time steps dt imply more accurate controls but also require a larger NMPC problem to be solved, thus increasing latency. Here I chose N as 10 and dt as 0.1.
+
+## Polynomial Fitting and MPC Preprocessing
+I transformed the waypoints from global coordinate system to the vehicle coordinate system with:
+  * double x = (ptsx[i] - px) * cos(psi) + (ptsy[i] - py) * sin(psi);
+  * double y = -(ptsx[i] - px) * sin(psi) + (ptsy[i] - py) * cos(psi);
+And the waypoints is fitted to a third order polynomial.
+
+## Model Predictive Control with Latency
+I used kinematic equations to predict the states for after 100ms before sending them to MPC and after polynomial fitting and use vehicle map coordinate.
+* First, at current time t=0, my car's states are px=0, py=0, psi=0 right after converting to car coordinate. There I calcualte cte and epsi:
+cte = desired_y - actual_y
+    = polyeval(coeffs,px)-py
+    = polyeval(coeffs,0) because px=py=0
+epsi =  actual psi-desired psi
+     = psi - atan(coeffs[1]+coeffs[2]*2*px+...) 
+     = -atan(coeffs[1])  because px=psi=0
+* Then I predict all the states for t=latency. And since px=py=psi=0 at t=0, I got:
+          px = v*latency;
+          py = 0;
+          cte= cte + v*sin(epsi)*latency;
+          epsi = epsi + v*delta*latency/Lf;
+          psi = v*delta*latency/Lf;
+          v = v + a*latency;
 
 ## Dependencies
 
