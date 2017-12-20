@@ -29,6 +29,8 @@ const size_t cte_start = v_start + N;
 const size_t epsi_start = cte_start + N;
 const size_t delta_start = epsi_start + N;
 const size_t a_start = delta_start + N - 1;
+double prevDelta;
+double prevA;
 
 class FG_eval {
  public:
@@ -45,7 +47,7 @@ class FG_eval {
     fg[0] = 0;
 
     for (int t = 0; t < N; t++) {
-      fg[0] += 5000*CppAD::pow(vars[cte_start + t], 2);
+      fg[0] += 2000*CppAD::pow(vars[cte_start + t], 2);
       fg[0] += 5000*CppAD::pow(vars[epsi_start + t], 2);
       fg[0] += CppAD::pow(vars[v_start + t] - ref_v, 2);
     }
@@ -53,7 +55,7 @@ class FG_eval {
     for (int t = 0; t < N - 1; t++) {
       fg[0] += 2500*CppAD::pow(vars[delta_start + t], 2);
       fg[0] += CppAD::pow(vars[a_start + t], 2);
-      fg[0] += 700*CppAD::pow(vars[delta_start + t] * vars[v_start + t], 2);
+      fg[0] += 200*CppAD::pow(vars[delta_start + t] * vars[v_start + t], 2);
     }
 
     for (int t = 0; t < N - 2; t++) {
@@ -157,6 +159,11 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
     vars_upperbound[i] = 1.0;
   }
 
+  vars_lowerbound[delta_start]=prevDelta;
+  vars_upperbound[delta_start]=prevDelta;
+  vars_lowerbound[a_start]=prevA;
+  vars_upperbound[a_start]=prevA;
+
   // Lower and upper limits for the constraints
   // Should be 0 besides initial state.
   Dvector constraints_lowerbound(n_constraints);
@@ -222,8 +229,11 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   // {...} is shorthand for creating a vector, so auto x1 = {1.0,2.0}
   // creates a 2 element double vector.
   vector<double> result;
-  result.push_back(solution.x[delta_start]);
-  result.push_back(solution.x[a_start]);
+  //take the next value instead (after 100ms)
+  result.push_back(solution.x[delta_start + 1]);
+  result.push_back(solution.x[a_start + 1]);
+  prevDelta=solution.x[delta_start+1];
+  prevA=solution.x[a_start+1];
   std::cout << "a " << result[1] << std::endl;
   for (int i = 1; i < 2*N-1; i++) {
     if (i!=N) result.push_back(solution.x[x_start + i]);
